@@ -27,6 +27,12 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   );
 
   const user = result.rows[0];
+
+  await pool.query(
+    'INSERT INTO currencies (user_id, code, name) VALUES ($1, $2, $3)',
+    [user.id, 'USD', 'US Dollar']
+  );
+
   const token = uuidv4();
   const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
