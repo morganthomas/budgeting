@@ -47,6 +47,14 @@ export default function Layout() {
           >
             Reports
           </NavLink>
+          <NavLink
+            to="/data"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`
+            }
+          >
+            Data
+          </NavLink>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{user?.username}</span>
