@@ -41,7 +41,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     [user.id, token, expires_at]
   );
 
-  res.cookie('session_token', token, { httpOnly: true, expires: expires_at, sameSite: 'lax' });
+  res.cookie('session_token', token, { httpOnly: true, expires: expires_at, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
   res.json({ user: { id: user.id, username: user.username }, token });
 });
 
@@ -69,7 +69,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     [user.id, token, expires_at]
   );
 
-  res.cookie('session_token', token, { httpOnly: true, expires: expires_at, sameSite: 'lax' });
+  res.cookie('session_token', token, { httpOnly: true, expires: expires_at, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
   res.json({ user: { id: user.id, username: user.username }, token });
 });
 

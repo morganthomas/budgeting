@@ -1,0 +1,9 @@
+{$DOMAIN} {
+    encode gzip
+
+    # API requests go directly to the backend
+    reverse_proxy /api/* backend:3001
+
+    # Everything else is served by the frontend (nginx)
+    reverse_proxy frontend:80
+}
