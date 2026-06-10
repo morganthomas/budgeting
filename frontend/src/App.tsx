@@ -3,12 +3,15 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import AccountDetailPage from './pages/AccountDetailPage';
 import CurrenciesPage from './pages/CurrenciesPage';
 import CategoriesPage from './pages/CategoriesPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import DataPage from './pages/DataPage';
+import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -31,6 +34,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+          <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/accounts/:id" element={<AccountDetailPage />} />
@@ -38,6 +43,7 @@ export default function App() {
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/reports" element={<MonthlyReportPage />} />
             <Route path="/data" element={<DataPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

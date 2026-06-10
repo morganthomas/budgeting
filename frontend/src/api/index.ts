@@ -15,10 +15,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   auth: {
-    register: (username: string, password: string) =>
+    register: (username: string, password: string, email?: string) =>
       request<{ user: User; token: string }>('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, email: email || undefined }),
       }),
     login: (username: string, password: string) =>
       request<{ user: User; token: string }>('/auth/login', {
@@ -27,6 +27,21 @@ export const api = {
       }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request<{ user: User }>('/auth/me'),
+    updateProfile: (email: string | null) =>
+      request<{ user: User }>('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ email }),
+      }),
+    forgotPassword: (email: string) =>
+      request<{ ok: boolean }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    resetPassword: (token: string, password: string) =>
+      request<{ ok: boolean }>('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+      }),
   },
   currencies: {
     list: () => request<{ currencies: Currency[]; exchange_rates: ExchangeRate[] }>('/currencies'),
@@ -81,6 +96,7 @@ export const api = {
 export interface User {
   id: string;
   username: string;
+  email?: string | null;
 }
 
 export interface Currency {

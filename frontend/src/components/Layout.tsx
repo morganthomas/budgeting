@@ -57,7 +57,14 @@ export default function Layout() {
           </NavLink>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">{user?.username}</span>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`
+            }
+          >
+            {user?.username}
+          </NavLink>
           <button
             onClick={handleLogout}
             className="text-sm text-gray-500 hover:text-gray-900"

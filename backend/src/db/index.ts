@@ -74,5 +74,27 @@ export async function initDb(): Promise<void> {
       ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES categories(id) ON DELETE SET NULL
   `);
 
+  // Migration: add email to users
+  await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS email VARCHAR(255)
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
+      ON users (email)
+      WHERE email IS NOT NULL
+  `);
+
+  // Migration: add password_reset_tokens table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token VARCHAR(255) UNIQUE NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('Database initialized');
 }

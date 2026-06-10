@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const message = (location.state as { message?: string } | null)?.message;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,6 +30,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Sign in</h1>
+        {message && <p className="text-green-600 text-sm mb-4">{message}</p>}
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -59,6 +62,9 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="mt-4 text-sm text-gray-500 text-center">
+          <Link to="/forgot-password" className="text-indigo-600 hover:underline">Forgot password?</Link>
+        </p>
+        <p className="mt-2 text-sm text-gray-500 text-center">
           No account?{' '}
           <Link to="/register" className="text-indigo-600 hover:underline">Register</Link>
         </p>
