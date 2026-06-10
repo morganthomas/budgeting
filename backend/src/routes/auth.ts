@@ -180,4 +180,24 @@ router.post('/reset-password', async (req: Request, res: Response): Promise<void
   res.json({ ok: true });
 });
 
+router.put('/password', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: 'New password must be 6+ chars' });
+    return;
+  }
+
+  const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.userId]);
+  const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+  if (!valid) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, req.userId]);
+  res.json({ ok: true });
+});
+
 export default router;

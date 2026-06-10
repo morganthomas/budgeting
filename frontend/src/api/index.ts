@@ -42,6 +42,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ token, password }),
       }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ ok: boolean }>('/auth/password', {
+        method: 'PUT',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
   },
   currencies: {
     list: () => request<{ currencies: Currency[]; exchange_rates: ExchangeRate[] }>('/currencies'),
