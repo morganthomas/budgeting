@@ -55,14 +55,26 @@ export const api = {
   transactions: {
     list: (accountId: string) =>
       request<Transaction[]>(`/transactions/account/${accountId}`),
-    create: (accountId: string, data: { timestamp: string; counterparty: string; amount: number }) =>
+    create: (accountId: string, data: { timestamp: string; counterparty: string; amount: number; category_id?: string | null }) =>
       request<Transaction>(`/transactions/account/${accountId}`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (id: string, data: Partial<{ timestamp: string; counterparty: string; amount: number }>) =>
+    update: (id: string, data: Partial<{ timestamp: string; counterparty: string; amount: number; category_id: string | null }>) =>
       request<Transaction>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/transactions/${id}`, { method: 'DELETE' }),
+  },
+  categories: {
+    list: () => request<Category[]>('/categories'),
+    create: (name: string) =>
+      request<Category>('/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+    update: (id: string, name: string) =>
+      request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    delete: (id: string) => request(`/categories/${id}`, { method: 'DELETE' }),
+  },
+  reports: {
+    monthly: (year: number, month: number) =>
+      request<MonthlyReport>(`/reports/monthly?year=${year}&month=${month}`),
   },
 };
 
@@ -104,5 +116,28 @@ export interface Transaction {
   timestamp: string;
   counterparty: string;
   amount: string;
+  category_id: string | null;
+  category_name: string | null;
   created_at: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface CategoryReport {
+  category_id: string | null;
+  category_name: string;
+  transaction_count: number;
+  totals_by_currency: { currency_code: string; total: number }[];
+  total_usd: number | null;
+  transactions: Transaction[];
+}
+
+export interface MonthlyReport {
+  year: number;
+  month: number;
+  categories: CategoryReport[];
 }

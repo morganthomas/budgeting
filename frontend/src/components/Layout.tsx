@@ -31,6 +31,22 @@ export default function Layout() {
           >
             Currencies
           </NavLink>
+          <NavLink
+            to="/categories"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`
+            }
+          >
+            Categories
+          </NavLink>
+          <NavLink
+            to="/reports"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`
+            }
+          >
+            Reports
+          </NavLink>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{user?.username}</span>

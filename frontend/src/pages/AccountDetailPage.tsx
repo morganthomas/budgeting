@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, Account, Transaction } from '../api';
+import { api, Account, Transaction, Category } from '../api';
 
 function fmt(amount: string) {
   const n = parseFloat(amount);
@@ -15,20 +15,23 @@ export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [timestamp, setTimestamp] = useState(() => new Date().toISOString().slice(0, 16));
   const [counterparty, setCounterparty] = useState('');
   const [amount, setAmount] = useState('');
+  const [categoryId, setCategoryId] = useState<string>('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([api.accounts.get(id), api.transactions.list(id)])
-      .then(([acc, txs]) => {
+    Promise.all([api.accounts.get(id), api.transactions.list(id), api.categories.list()])
+      .then(([acc, txs, cats]) => {
         setAccount(acc);
         setTransactions(txs);
+        setCategories(cats);
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -37,6 +40,7 @@ export default function AccountDetailPage() {
     setTimestamp(new Date().toISOString().slice(0, 16));
     setCounterparty('');
     setAmount('');
+    setCategoryId('');
     setEditTx(null);
     setShowForm(false);
     setError('');
@@ -47,6 +51,7 @@ export default function AccountDetailPage() {
     setTimestamp(new Date(tx.timestamp).toISOString().slice(0, 16));
     setCounterparty(tx.counterparty);
     setAmount(tx.amount);
+    setCategoryId(tx.category_id ?? '');
     setShowForm(true);
   };
 
@@ -57,6 +62,7 @@ export default function AccountDetailPage() {
       timestamp: new Date(timestamp).toISOString(),
       counterparty,
       amount: parseFloat(amount),
+      category_id: categoryId || null,
     };
     try {
       if (editTx) {
@@ -103,7 +109,7 @@ export default function AccountDetailPage() {
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-gray-900">
-            {parseFloat(account.current_balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+            {parseFloat(account.current_balance ?? account.start_balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
           </p>
           <p className="text-xs text-gray-500">Current balance</p>
         </div>
@@ -124,7 +130,7 @@ export default function AccountDetailPage() {
           <h3 className="font-medium text-gray-900 mb-4">{editTx ? 'Edit Transaction' : 'New Transaction'}</h3>
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
                 <input
@@ -158,6 +164,24 @@ export default function AccountDetailPage() {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">— None —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {categories.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    <Link to="/categories" className="underline">Create categories</Link> to tag transactions.
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">
@@ -180,6 +204,7 @@ export default function AccountDetailPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Counterparty</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -189,6 +214,11 @@ export default function AccountDetailPage() {
                 <tr key={tx.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(tx.timestamp)}</td>
                   <td className="px-4 py-3 text-gray-900">{tx.counterparty}</td>
+                  <td className="px-4 py-3">
+                    {tx.category_name
+                      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{tx.category_name}</span>
+                      : <span className="text-gray-300 text-xs">—</span>}
+                  </td>
                   <td className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${parseFloat(tx.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {fmt(tx.amount)}
                   </td>

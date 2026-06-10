@@ -6,6 +6,8 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import AccountDetailPage from './pages/AccountDetailPage';
 import CurrenciesPage from './pages/CurrenciesPage';
+import CategoriesPage from './pages/CategoriesPage';
+import MonthlyReportPage from './pages/MonthlyReportPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -32,6 +34,8 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/accounts/:id" element={<AccountDetailPage />} />
             <Route path="/currencies" element={<CurrenciesPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/reports" element={<MonthlyReportPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

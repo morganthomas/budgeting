@@ -6,6 +6,8 @@ import authRouter from './routes/auth';
 import accountsRouter from './routes/accounts';
 import currenciesRouter from './routes/currencies';
 import transactionsRouter from './routes/transactions';
+import categoriesRouter from './routes/categories';
+import reportsRouter from './routes/reports';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +23,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/currencies', currenciesRouter);
 app.use('/api/transactions', transactionsRouter);
+app.use('/api/categories', categoriesRouter);
+app.use('/api/reports', reportsRouter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
