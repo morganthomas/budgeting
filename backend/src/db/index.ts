@@ -96,6 +96,17 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // Migration: add sort_order to accounts for user-defined ordering
+  await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sort_order INTEGER`);
+  await pool.query(`
+    UPDATE accounts SET sort_order = sub.rn
+    FROM (
+      SELECT id, (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at) - 1)::INTEGER AS rn
+      FROM accounts WHERE sort_order IS NULL
+    ) sub
+    WHERE accounts.id = sub.id
+  `);
+
   // Migration: add transfer_id to link the two legs of a transfer
   await pool.query(`
     ALTER TABLE transactions

@@ -14,7 +14,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
      LEFT JOIN transactions t ON t.account_id = a.id
      WHERE a.user_id = $1
      GROUP BY a.id, c.code, c.name
-     ORDER BY a.created_at`,
+     ORDER BY a.sort_order NULLS LAST, a.created_at`,
     [req.userId]
   );
   res.json(result.rows);
@@ -37,7 +37,9 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
   }
 
   const result = await pool.query(
-    'INSERT INTO accounts (user_id, name, currency_id, start_balance) VALUES ($1, $2, $3, $4) RETURNING *',
+    `INSERT INTO accounts (user_id, name, currency_id, start_balance, sort_order)
+     VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(sort_order) + 1 FROM accounts WHERE user_id = $1), 0))
+     RETURNING *`,
     [req.userId, name, currency_id, start_balance ?? 0]
   );
   res.status(201).json(result.rows[0]);
@@ -59,6 +61,31 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     return;
   }
   res.json(result.rows[0]);
+});
+
+router.put('/reorder', async (req: AuthRequest, res: Response): Promise<void> => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) {
+    res.status(400).json({ error: 'ids must be an array' });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (let i = 0; i < ids.length; i++) {
+      await client.query(
+        'UPDATE accounts SET sort_order = $1 WHERE id = $2 AND user_id = $3',
+        [i, ids[i], req.userId]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {

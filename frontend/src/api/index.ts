@@ -78,6 +78,8 @@ export const api = {
     update: (id: string, data: Partial<{ name: string; start_balance: number }>) =>
       request<Account>(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/accounts/${id}`, { method: 'DELETE' }),
+    reorder: (ids: string[]) =>
+      request<{ ok: boolean }>('/accounts/reorder', { method: 'PUT', body: JSON.stringify({ ids }) }),
   },
   transactions: {
     list: (accountId: string) =>
