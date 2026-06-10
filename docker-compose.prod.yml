@@ -24,6 +24,8 @@ services:
       PORT: 3001
       FRONTEND_URL: https://${DOMAIN:?DOMAIN is required}
       NODE_ENV: production
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:?SENDGRID_API_KEY is required}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
     depends_on:
       db:
         condition: service_healthy
