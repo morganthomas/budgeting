@@ -96,5 +96,11 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // Migration: add transfer_id to link the two legs of a transfer
+  await pool.query(`
+    ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS transfer_id UUID
+  `);
+
   console.log('Database initialized');
 }

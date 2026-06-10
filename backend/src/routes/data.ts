@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../db';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 
@@ -24,7 +25,7 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
       [req.userId]
     ),
     pool.query(
-      `SELECT t.id, t.account_id, t.timestamp, t.counterparty, t.amount, t.category_id
+      `SELECT t.id, t.account_id, t.timestamp, t.counterparty, t.amount, t.category_id, t.transfer_id
        FROM transactions t
        JOIN accounts a ON t.account_id = a.id
        WHERE a.user_id = $1
@@ -114,14 +115,20 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
       accountIdMap.set(a.id, r.rows[0].id);
     }
 
+    const transferIdMap = new Map<string, string>();
     let txImported = 0;
-    for (const t of transactions as { id: string; account_id: string; timestamp: string; counterparty: string; amount: string; category_id: string | null }[]) {
+    for (const t of transactions as { id: string; account_id: string; timestamp: string; counterparty: string; amount: string; category_id: string | null; transfer_id: string | null }[]) {
       const accountId = accountIdMap.get(t.account_id);
       if (!accountId) continue;
       const categoryId = t.category_id ? (categoryIdMap.get(t.category_id) ?? null) : null;
+      let transferId: string | null = null;
+      if (t.transfer_id) {
+        if (!transferIdMap.has(t.transfer_id)) transferIdMap.set(t.transfer_id, uuidv4());
+        transferId = transferIdMap.get(t.transfer_id)!;
+      }
       await client.query(
-        'INSERT INTO transactions (account_id, timestamp, counterparty, amount, category_id) VALUES ($1, $2, $3, $4, $5)',
-        [accountId, t.timestamp, t.counterparty, t.amount, categoryId]
+        'INSERT INTO transactions (account_id, timestamp, counterparty, amount, category_id, transfer_id) VALUES ($1, $2, $3, $4, $5, $6)',
+        [accountId, t.timestamp, t.counterparty, t.amount, categoryId, transferId]
       );
       txImported++;
     }

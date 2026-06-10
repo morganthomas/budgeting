@@ -9,6 +9,7 @@ import transactionsRouter from './routes/transactions';
 import categoriesRouter from './routes/categories';
 import reportsRouter from './routes/reports';
 import dataRouter from './routes/data';
+import transfersRouter from './routes/transfers';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +31,7 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/data', dataRouter);
+app.use('/api/transfers', transfersRouter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 

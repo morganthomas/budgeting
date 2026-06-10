@@ -48,6 +48,13 @@ export const api = {
         body: JSON.stringify({ currentPassword, newPassword }),
       }),
   },
+  transfers: {
+    create: (data: { from_account_id: string; to_account_id: string; from_amount: number; to_amount: number; timestamp: string }) =>
+      request<{ transfer_id: string }>('/transfers', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
   currencies: {
     list: () => request<{ currencies: Currency[]; exchange_rates: ExchangeRate[] }>('/currencies'),
     create: (data: { code: string; name: string }) =>
@@ -139,6 +146,7 @@ export interface Transaction {
   amount: string;
   category_id: string | null;
   category_name: string | null;
+  transfer_id: string | null;
   created_at: string;
 }
 

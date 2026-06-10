@@ -109,7 +109,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   const txCheck = await pool.query(
-    `SELECT t.id FROM transactions t
+    `SELECT t.id, t.transfer_id FROM transactions t
      JOIN accounts a ON t.account_id = a.id
      WHERE t.id = $1 AND a.user_id = $2`,
     [req.params.id, req.userId]
@@ -119,7 +119,12 @@ router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => 
     return;
   }
 
-  await pool.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
+  const { transfer_id } = txCheck.rows[0];
+  if (transfer_id) {
+    await pool.query('DELETE FROM transactions WHERE transfer_id = $1', [transfer_id]);
+  } else {
+    await pool.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
+  }
   res.json({ ok: true });
 });
 
