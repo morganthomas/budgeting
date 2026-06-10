@@ -156,8 +156,8 @@ export default function AccountDetailPage() {
                   Amount <span className="text-gray-400 font-normal">(negative for expenses)</span>
                 </label>
                 <input
-                  type="number"
-                  step="0.0001"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
