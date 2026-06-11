@@ -206,6 +206,20 @@ export default function CategoriesPage() {
                 );
               })}
             </tbody>
+            {budgets.size > 0 && (() => {
+              const total = Array.from(budgets.values()).reduce((s, v) => s + v, 0);
+              return (
+                <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-700">Total</td>
+                    <td className="px-4 py-3 text-right font-mono font-semibold text-gray-700">
+                      ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              );
+            })()}
           </table>
         </div>
       )}
