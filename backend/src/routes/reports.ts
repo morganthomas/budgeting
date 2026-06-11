@@ -27,6 +27,15 @@ router.get('/monthly', async (req: AuthRequest, res: Response): Promise<void> =>
     [req.userId, year, month]
   );
 
+  const budgetResult = await pool.query(
+    'SELECT category_id, monthly_amount FROM category_budgets WHERE user_id = $1',
+    [req.userId]
+  );
+  const budgetMap: Record<string, number> = {};
+  for (const b of budgetResult.rows) {
+    budgetMap[b.category_id] = parseFloat(b.monthly_amount);
+  }
+
   const rateResult = await pool.query(
     `SELECT er.from_currency_id, cur.code AS from_code, er.rate
      FROM exchange_rates er
@@ -48,6 +57,7 @@ router.get('/monthly', async (req: AuthRequest, res: Response): Promise<void> =>
     totals_by_currency: Record<string, number>;
     total_usd: number;
     all_convertible: boolean;
+    budget_amount: number | null;
   };
 
   const categoryMap = new Map<string, CategoryEntry>();
@@ -62,6 +72,7 @@ router.get('/monthly', async (req: AuthRequest, res: Response): Promise<void> =>
         totals_by_currency: {},
         total_usd: 0,
         all_convertible: true,
+        budget_amount: tx.category_id ? (budgetMap[tx.category_id] ?? null) : null,
       });
     }
     const entry = categoryMap.get(key)!;
@@ -91,6 +102,7 @@ router.get('/monthly', async (req: AuthRequest, res: Response): Promise<void> =>
         total,
       })),
       total_usd: e.all_convertible ? e.total_usd : null,
+      budget_amount: e.budget_amount,
       transactions: e.transactions,
     }))
     .sort((a, b) => {

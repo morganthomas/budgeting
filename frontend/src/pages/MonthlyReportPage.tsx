@@ -14,6 +14,46 @@ function fmtDate(ts: string) {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function BudgetCell({ cat }: { cat: CategoryReport }) {
+  const budget = cat.budget_amount;
+  if (!budget) return <span className="text-gray-300 text-xs">—</span>;
+
+  if (cat.total_usd === null) {
+    return (
+      <span className="text-xs text-gray-500">
+        ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <span className="text-amber-400 ml-1">(no rate)</span>
+      </span>
+    );
+  }
+
+  const spent = Math.abs(cat.total_usd);
+  const over = spent > budget;
+  const pct = Math.min((spent / budget) * 100, 100);
+  const diff = Math.abs(spent - budget);
+
+  return (
+    <div className="flex flex-col items-end gap-1 min-w-[7rem]">
+      <span className={`text-xs font-medium ${over ? 'text-red-600' : 'text-green-600'}`}>
+        {over
+          ? `$${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over`
+          : `$${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} under`}
+      </span>
+      <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${over ? 'bg-red-500' : 'bg-indigo-500'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-gray-400 text-xs">
+        ${spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {' / '}
+        ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
+    </div>
+  );
+}
+
 function CategoryRow({ cat }: { cat: CategoryReport }) {
   const [expanded, setExpanded] = useState(false);
   const netSign = (cat.total_usd ?? 0) >= 0;
@@ -47,6 +87,9 @@ function CategoryRow({ cat }: { cat: CategoryReport }) {
             ? `${fmtAmount(cat.total_usd)} USD`
             : <span className="text-amber-500 font-normal text-xs">no rate</span>}
         </td>
+        <td className="px-4 py-3 text-right">
+          <BudgetCell cat={cat} />
+        </td>
       </tr>
       {expanded && cat.transactions.map((tx) => (
         <tr key={tx.id} className="bg-gray-50 border-t border-gray-100">
@@ -61,6 +104,7 @@ function CategoryRow({ cat }: { cat: CategoryReport }) {
             </span>
             <span className="text-gray-400 ml-1 text-xs">{(tx as { currency_code?: string }).currency_code ?? ''}</span>
           </td>
+          <td />
           <td />
         </tr>
       ))}
@@ -140,14 +184,15 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* Breakdown table */}
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm min-w-[48rem]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Txns</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Native</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">USD</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Budget (USD)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -164,6 +209,7 @@ export default function MonthlyReportPage() {
                     <td className={`px-4 py-3 text-right font-mono font-bold ${totalUsd >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {fmtAmount(totalUsd)} USD
                     </td>
+                    <td />
                   </tr>
                 </tfoot>
               )}

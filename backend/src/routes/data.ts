@@ -7,7 +7,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => {
-  const [currencies, exchange_rates, categories, accounts, transactions, recurring_payments, recurring_occurrences] = await Promise.all([
+  const [currencies, exchange_rates, categories, accounts, transactions, recurring_payments, recurring_occurrences, category_budgets] = await Promise.all([
     pool.query(
       'SELECT id, code, name FROM currencies WHERE user_id = $1 ORDER BY code',
       [req.userId]
@@ -45,6 +45,10 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
        ORDER BY ro.due_date`,
       [req.userId]
     ),
+    pool.query(
+      'SELECT category_id, monthly_amount FROM category_budgets WHERE user_id = $1',
+      [req.userId]
+    ),
   ]);
 
   res.json({
@@ -57,6 +61,7 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
     transactions: transactions.rows,
     recurring_payments: recurring_payments.rows,
     recurring_occurrences: recurring_occurrences.rows,
+    category_budgets: category_budgets.rows,
   });
 });
 
@@ -75,6 +80,7 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
   const transactions: unknown[] = Array.isArray(data.transactions) ? data.transactions : [];
   const recurring_payments: unknown[] = Array.isArray(data.recurring_payments) ? data.recurring_payments : [];
   const recurring_occurrences: unknown[] = Array.isArray(data.recurring_occurrences) ? data.recurring_occurrences : [];
+  const category_budgets: unknown[] = Array.isArray(data.category_budgets) ? data.category_budgets : [];
 
   const client = await pool.connect();
   try {
@@ -92,6 +98,7 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
       [req.userId]
     );
     await client.query('DELETE FROM exchange_rates WHERE user_id = $1', [req.userId]);
+    await client.query('DELETE FROM category_budgets WHERE user_id = $1', [req.userId]);
     await client.query('DELETE FROM accounts WHERE user_id = $1', [req.userId]);
     await client.query('DELETE FROM categories WHERE user_id = $1', [req.userId]);
     await client.query('DELETE FROM currencies WHERE user_id = $1', [req.userId]);
@@ -183,6 +190,18 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
       occImported++;
     }
 
+    let budgetsImported = 0;
+    for (const b of category_budgets as { category_id: string; monthly_amount: string }[]) {
+      const categoryId = categoryIdMap.get(b.category_id);
+      if (!categoryId) continue;
+      await client.query(
+        `INSERT INTO category_budgets (user_id, category_id, monthly_amount)
+         VALUES ($1, $2, $3) ON CONFLICT (user_id, category_id) DO UPDATE SET monthly_amount = EXCLUDED.monthly_amount`,
+        [req.userId, categoryId, b.monthly_amount]
+      );
+      budgetsImported++;
+    }
+
     await client.query('COMMIT');
     res.json({
       ok: true,
@@ -194,6 +213,7 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
         transactions: txImported,
         recurring_payments: rpImported,
         recurring_occurrences: occImported,
+        category_budgets: budgetsImported,
       },
     });
   } catch (err) {

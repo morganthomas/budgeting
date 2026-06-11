@@ -139,5 +139,16 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // Migration: per-category monthly budget targets
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS category_budgets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      monthly_amount NUMERIC(14,4) NOT NULL,
+      UNIQUE(user_id, category_id)
+    )
+  `);
+
   console.log('Database initialized');
 }

@@ -3,16 +3,22 @@ import { api, Category } from '../api';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [budgets, setBudgets] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [budgetEditId, setBudgetEditId] = useState<string | null>(null);
+  const [budgetEditValue, setBudgetEditValue] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.categories.list()
-      .then(setCategories)
+    Promise.all([api.categories.list(), api.budgets.list()])
+      .then(([cats, bdgs]) => {
+        setCategories(cats);
+        setBudgets(new Map(bdgs.map((b) => [b.category_id, parseFloat(b.monthly_amount)])));
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,6 +52,29 @@ export default function CategoriesPage() {
     if (!confirm('Delete this category? Transactions will become uncategorized.')) return;
     await api.categories.delete(id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    setBudgets((prev) => { const m = new Map(prev); m.delete(id); return m; });
+  };
+
+  const openBudgetEdit = (id: string) => {
+    setBudgetEditId(id);
+    setBudgetEditValue(budgets.has(id) ? String(budgets.get(id)) : '');
+  };
+
+  const handleSaveBudget = async (id: string) => {
+    const amt = parseFloat(budgetEditValue);
+    if (isNaN(amt) || amt <= 0) return;
+    try {
+      const result = await api.budgets.upsert(id, amt);
+      setBudgets((prev) => new Map(prev).set(id, parseFloat(result.monthly_amount)));
+      setBudgetEditId(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed');
+    }
+  };
+
+  const handleClearBudget = async (id: string) => {
+    await api.budgets.delete(id);
+    setBudgets((prev) => { const m = new Map(prev); m.delete(id); return m; });
   };
 
   if (loading) return <p className="text-gray-500">Loading...</p>;
@@ -90,58 +119,92 @@ export default function CategoriesPage() {
       {categories.length === 0 ? (
         <p className="text-gray-500 text-sm">No categories yet. Create one to start tagging transactions.</p>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-[36rem]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Monthly Budget (USD)</th>
                 <th className="px-4 py-3 w-40"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {categories.map((cat) => (
-                <tr key={cat.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    {editId === cat.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEdit(cat.id);
-                            if (e.key === 'Escape') setEditId(null);
-                          }}
-                        />
-                        <button onClick={() => handleSaveEdit(cat.id)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Save</button>
-                        <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
-                        {error && <span className="text-red-600 text-xs">{error}</span>}
-                      </div>
-                    ) : (
-                      <span className="text-gray-900 font-medium">{cat.name}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {editId !== cat.id && (
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          onClick={() => { setEditId(cat.id); setEditName(cat.name); setError(''); }}
-                          className="text-indigo-500 hover:text-indigo-700 text-sm"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          onClick={() => handleDelete(cat.id)}
-                          className="text-red-500 hover:text-red-700 text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {categories.map((cat) => {
+                const budget = budgets.get(cat.id);
+                const isEditingBudget = budgetEditId === cat.id;
+                return (
+                  <tr key={cat.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      {editId === cat.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEdit(cat.id);
+                              if (e.key === 'Escape') setEditId(null);
+                            }}
+                          />
+                          <button onClick={() => handleSaveEdit(cat.id)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Save</button>
+                          <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                          {error && <span className="text-red-600 text-xs">{error}</span>}
+                        </div>
+                      ) : (
+                        <span className="text-gray-900 font-medium">{cat.name}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {isEditingBudget ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={budgetEditValue}
+                            onChange={(e) => setBudgetEditValue(e.target.value)}
+                            placeholder="e.g. 200"
+                            className="w-28 border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveBudget(cat.id);
+                              if (e.key === 'Escape') setBudgetEditId(null);
+                            }}
+                          />
+                          <button onClick={() => handleSaveBudget(cat.id)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Save</button>
+                          <button onClick={() => setBudgetEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                        </div>
+                      ) : budget !== undefined ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="font-mono text-gray-700">${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <button onClick={() => openBudgetEdit(cat.id)} className="text-indigo-400 hover:text-indigo-600 text-xs">Edit</button>
+                          <button onClick={() => handleClearBudget(cat.id)} className="text-gray-300 hover:text-red-500 text-xs">Clear</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => openBudgetEdit(cat.id)} className="text-indigo-400 hover:text-indigo-600 text-xs">+ Set budget</button>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {editId !== cat.id && !isEditingBudget && (
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => { setEditId(cat.id); setEditName(cat.name); setError(''); }}
+                            className="text-indigo-500 hover:text-indigo-700 text-sm"
+                          >
+                            Rename
+                          </button>
+                          <button
+                            onClick={() => handleDelete(cat.id)}
+                            className="text-red-500 hover:text-red-700 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

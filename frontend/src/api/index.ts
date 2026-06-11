@@ -105,6 +105,15 @@ export const api = {
     monthly: (year: number, month: number) =>
       request<MonthlyReport>(`/reports/monthly?year=${year}&month=${month}`),
   },
+  budgets: {
+    list: () => request<CategoryBudget[]>('/budgets'),
+    upsert: (categoryId: string, monthly_amount: number) =>
+      request<CategoryBudget>(`/budgets/${categoryId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ monthly_amount }),
+      }),
+    delete: (categoryId: string) => request(`/budgets/${categoryId}`, { method: 'DELETE' }),
+  },
   recurring: {
     list: () => request<RecurringPayment[]>('/recurring'),
     create: (data: { account_id: string; counterparty: string; amount: number; category_id?: string | null; frequency: string; start_date: string; end_date?: string | null }) =>
@@ -169,12 +178,18 @@ export interface Category {
   created_at: string;
 }
 
+export interface CategoryBudget {
+  category_id: string;
+  monthly_amount: string;
+}
+
 export interface CategoryReport {
   category_id: string | null;
   category_name: string;
   transaction_count: number;
   totals_by_currency: { currency_code: string; total: number }[];
   total_usd: number | null;
+  budget_amount: number | null;
   transactions: Transaction[];
 }
 
