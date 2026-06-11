@@ -139,15 +139,25 @@ export async function initDb(): Promise<void> {
     )
   `);
 
-  // Migration: per-category monthly budget targets
+  // Migration: per-category monthly budget targets (append-only log)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS category_budgets (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
       monthly_amount NUMERIC(14,4) NOT NULL,
-      UNIQUE(user_id, category_id)
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+  // Drop unique constraint if it exists from a prior schema version
+  await pool.query(`
+    ALTER TABLE category_budgets
+      DROP CONSTRAINT IF EXISTS category_budgets_user_id_category_id_key
+  `);
+  // Add created_at if missing (existing installs)
+  await pool.query(`
+    ALTER TABLE category_budgets
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
   `);
 
   console.log('Database initialized');

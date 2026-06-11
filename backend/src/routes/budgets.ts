@@ -5,14 +5,19 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 const router = Router();
 router.use(requireAuth);
 
+// Return the latest budget entry per category (current state)
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   const { rows } = await pool.query(
-    'SELECT category_id, monthly_amount FROM category_budgets WHERE user_id = $1',
+    `SELECT DISTINCT ON (category_id) category_id, monthly_amount
+     FROM category_budgets
+     WHERE user_id = $1
+     ORDER BY category_id, created_at DESC`,
     [req.userId]
   );
   res.json(rows);
 });
 
+// Append a new budget entry (never updates in place)
 router.put('/:categoryId', async (req: AuthRequest, res: Response): Promise<void> => {
   const { monthly_amount } = req.body;
   const amt = parseFloat(monthly_amount);
@@ -31,13 +36,13 @@ router.put('/:categoryId', async (req: AuthRequest, res: Response): Promise<void
   const { rows } = await pool.query(
     `INSERT INTO category_budgets (user_id, category_id, monthly_amount)
      VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, category_id) DO UPDATE SET monthly_amount = EXCLUDED.monthly_amount
      RETURNING category_id, monthly_amount`,
     [req.userId, req.params.categoryId, amt]
   );
   res.json(rows[0]);
 });
 
+// Delete all budget history for a category (full clear)
 router.delete('/:categoryId', async (req: AuthRequest, res: Response): Promise<void> => {
   await pool.query(
     'DELETE FROM category_budgets WHERE user_id = $1 AND category_id = $2',

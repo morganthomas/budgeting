@@ -46,7 +46,7 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
       [req.userId]
     ),
     pool.query(
-      'SELECT category_id, monthly_amount FROM category_budgets WHERE user_id = $1',
+      'SELECT category_id, monthly_amount, created_at FROM category_budgets WHERE user_id = $1 ORDER BY created_at',
       [req.userId]
     ),
   ]);
@@ -191,13 +191,13 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
     }
 
     let budgetsImported = 0;
-    for (const b of category_budgets as { category_id: string; monthly_amount: string }[]) {
+    for (const b of category_budgets as { category_id: string; monthly_amount: string; created_at?: string }[]) {
       const categoryId = categoryIdMap.get(b.category_id);
       if (!categoryId) continue;
       await client.query(
-        `INSERT INTO category_budgets (user_id, category_id, monthly_amount)
-         VALUES ($1, $2, $3) ON CONFLICT (user_id, category_id) DO UPDATE SET monthly_amount = EXCLUDED.monthly_amount`,
-        [req.userId, categoryId, b.monthly_amount]
+        `INSERT INTO category_budgets (user_id, category_id, monthly_amount, created_at)
+         VALUES ($1, $2, $3, COALESCE($4, NOW()))`,
+        [req.userId, categoryId, b.monthly_amount, b.created_at ?? null]
       );
       budgetsImported++;
     }

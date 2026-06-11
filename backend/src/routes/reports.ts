@@ -27,9 +27,14 @@ router.get('/monthly', async (req: AuthRequest, res: Response): Promise<void> =>
     [req.userId, year, month]
   );
 
+  // Last day of the report month, inclusive upper bound for budget lookups
+  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString();
   const budgetResult = await pool.query(
-    'SELECT category_id, monthly_amount FROM category_budgets WHERE user_id = $1',
-    [req.userId]
+    `SELECT DISTINCT ON (category_id) category_id, monthly_amount
+     FROM category_budgets
+     WHERE user_id = $1 AND created_at <= $2
+     ORDER BY category_id, created_at DESC`,
+    [req.userId, endOfMonth]
   );
   const budgetMap: Record<string, number> = {};
   for (const b of budgetResult.rows) {
