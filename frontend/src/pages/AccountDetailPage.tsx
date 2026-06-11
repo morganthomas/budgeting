@@ -11,6 +11,12 @@ function fmtDatetime(ts: string) {
   return new Date(ts).toLocaleString();
 }
 
+function toLocalInput(d: Date | string): string {
+  const date = typeof d === 'string' ? new Date(d) : d;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function fmtDate(d: string) {
   return new Date(d.split('T')[0] + 'T12:00:00').toLocaleDateString();
 }
@@ -38,7 +44,7 @@ export default function AccountDetailPage() {
   // Transaction form
   const [showForm, setShowForm] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const [timestamp, setTimestamp] = useState(() => new Date().toISOString().slice(0, 16));
+  const [timestamp, setTimestamp] = useState(() => toLocalInput(new Date()));
   const [counterparty, setCounterparty] = useState('');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState<string>('');
@@ -49,7 +55,7 @@ export default function AccountDetailPage() {
   const [transferToId, setTransferToId] = useState('');
   const [transferFromAmt, setTransferFromAmt] = useState('');
   const [transferToAmt, setTransferToAmt] = useState('');
-  const [transferTimestamp, setTransferTimestamp] = useState(() => new Date().toISOString().slice(0, 16));
+  const [transferTimestamp, setTransferTimestamp] = useState(() => toLocalInput(new Date()));
   const [transferError, setTransferError] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
 
@@ -82,7 +88,7 @@ export default function AccountDetailPage() {
   ].sort((a, b) => rowDate(b) - rowDate(a));
 
   const resetForm = () => {
-    setTimestamp(new Date().toISOString().slice(0, 16));
+    setTimestamp(toLocalInput(new Date()));
     setCounterparty('');
     setAmount('');
     setCategoryId('');
@@ -92,7 +98,7 @@ export default function AccountDetailPage() {
   };
 
   const resetTransferForm = () => {
-    setTransferTimestamp(new Date().toISOString().slice(0, 16));
+    setTransferTimestamp(toLocalInput(new Date()));
     setTransferToId(otherAccounts[0]?.id ?? '');
     setTransferFromAmt('');
     setTransferToAmt('');
@@ -102,7 +108,7 @@ export default function AccountDetailPage() {
 
   const openEdit = (tx: Transaction) => {
     setEditTx(tx);
-    setTimestamp(new Date(tx.timestamp).toISOString().slice(0, 16));
+    setTimestamp(toLocalInput(tx.timestamp));
     setCounterparty(tx.counterparty);
     setAmount(tx.amount);
     setCategoryId(tx.category_id ?? '');
