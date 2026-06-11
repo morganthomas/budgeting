@@ -7,7 +7,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => {
-  const [currencies, exchange_rates, categories, accounts, transactions] = await Promise.all([
+  const [currencies, exchange_rates, categories, accounts, transactions, recurring_payments, recurring_occurrences] = await Promise.all([
     pool.query(
       'SELECT id, code, name FROM currencies WHERE user_id = $1 ORDER BY code',
       [req.userId]
@@ -32,6 +32,19 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
        ORDER BY t.timestamp`,
       [req.userId]
     ),
+    pool.query(
+      `SELECT id, account_id, counterparty, amount, category_id, frequency, start_date, end_date
+       FROM recurring_payments WHERE user_id = $1 ORDER BY created_at`,
+      [req.userId]
+    ),
+    pool.query(
+      `SELECT ro.id, ro.recurring_payment_id, ro.due_date, ro.verified
+       FROM recurring_occurrences ro
+       JOIN recurring_payments rp ON ro.recurring_payment_id = rp.id
+       WHERE rp.user_id = $1
+       ORDER BY ro.due_date`,
+      [req.userId]
+    ),
   ]);
 
   res.json({
@@ -42,6 +55,8 @@ router.get('/export', async (req: AuthRequest, res: Response): Promise<void> => 
     categories: categories.rows,
     accounts: accounts.rows,
     transactions: transactions.rows,
+    recurring_payments: recurring_payments.rows,
+    recurring_occurrences: recurring_occurrences.rows,
   });
 });
 
@@ -58,12 +73,20 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
   const categories: unknown[] = Array.isArray(data.categories) ? data.categories : [];
   const accounts: unknown[] = Array.isArray(data.accounts) ? data.accounts : [];
   const transactions: unknown[] = Array.isArray(data.transactions) ? data.transactions : [];
+  const recurring_payments: unknown[] = Array.isArray(data.recurring_payments) ? data.recurring_payments : [];
+  const recurring_occurrences: unknown[] = Array.isArray(data.recurring_occurrences) ? data.recurring_occurrences : [];
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     // Wipe existing user data in FK-safe order
+    await client.query(
+      `DELETE FROM recurring_occurrences WHERE recurring_payment_id IN
+       (SELECT id FROM recurring_payments WHERE user_id = $1)`,
+      [req.userId]
+    );
+    await client.query('DELETE FROM recurring_payments WHERE user_id = $1', [req.userId]);
     await client.query(
       'DELETE FROM transactions WHERE account_id IN (SELECT id FROM accounts WHERE user_id = $1)',
       [req.userId]
@@ -76,6 +99,7 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
     const currencyIdMap = new Map<string, string>();
     const categoryIdMap = new Map<string, string>();
     const accountIdMap = new Map<string, string>();
+    const recurringIdMap = new Map<string, string>();
 
     for (const c of currencies as { id: string; code: string; name: string }[]) {
       const r = await client.query(
@@ -133,6 +157,32 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
       txImported++;
     }
 
+    let rpImported = 0;
+    for (const rp of recurring_payments as { id: string; account_id: string; counterparty: string; amount: string; category_id: string | null; frequency: string; start_date: string; end_date: string | null }[]) {
+      const accountId = accountIdMap.get(rp.account_id);
+      if (!accountId) continue;
+      const categoryId = rp.category_id ? (categoryIdMap.get(rp.category_id) ?? null) : null;
+      const r = await client.query(
+        `INSERT INTO recurring_payments (user_id, account_id, counterparty, amount, category_id, frequency, start_date, end_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [req.userId, accountId, rp.counterparty, rp.amount, categoryId, rp.frequency, rp.start_date, rp.end_date ?? null]
+      );
+      recurringIdMap.set(rp.id, r.rows[0].id);
+      rpImported++;
+    }
+
+    let occImported = 0;
+    for (const occ of recurring_occurrences as { id: string; recurring_payment_id: string; due_date: string; verified: boolean }[]) {
+      const rpId = recurringIdMap.get(occ.recurring_payment_id);
+      if (!rpId) continue;
+      await client.query(
+        `INSERT INTO recurring_occurrences (recurring_payment_id, due_date, verified)
+         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [rpId, occ.due_date, occ.verified]
+      );
+      occImported++;
+    }
+
     await client.query('COMMIT');
     res.json({
       ok: true,
@@ -142,6 +192,8 @@ router.post('/import', async (req: AuthRequest, res: Response): Promise<void> =>
         categories: categoryIdMap.size,
         accounts: accountIdMap.size,
         transactions: txImported,
+        recurring_payments: rpImported,
+        recurring_occurrences: occImported,
       },
     });
   } catch (err) {

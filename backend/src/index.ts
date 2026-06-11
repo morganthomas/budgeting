@@ -10,6 +10,7 @@ import categoriesRouter from './routes/categories';
 import reportsRouter from './routes/reports';
 import dataRouter from './routes/data';
 import transfersRouter from './routes/transfers';
+import recurringRouter from './routes/recurring';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,6 +33,7 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/data', dataRouter);
 app.use('/api/transfers', transfersRouter);
+app.use('/api/recurring', recurringRouter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 

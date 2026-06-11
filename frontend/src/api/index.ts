@@ -105,6 +105,17 @@ export const api = {
     monthly: (year: number, month: number) =>
       request<MonthlyReport>(`/reports/monthly?year=${year}&month=${month}`),
   },
+  recurring: {
+    list: () => request<RecurringPayment[]>('/recurring'),
+    create: (data: { account_id: string; counterparty: string; amount: number; category_id?: string | null; frequency: string; start_date: string; end_date?: string | null }) =>
+      request<RecurringPayment>('/recurring', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<{ account_id: string; counterparty: string; amount: number; category_id: string | null; frequency: string; start_date: string; end_date: string | null }>) =>
+      request<RecurringPayment>(`/recurring/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/recurring/${id}`, { method: 'DELETE' }),
+    end: (id: string) => request(`/recurring/${id}/end`, { method: 'PUT' }),
+    occurrences: (accountId: string) => request<RecurringOccurrence[]>(`/recurring/occurrences/account/${accountId}`),
+    verify: (occurrenceId: string) => request<{ verified: boolean }>(`/recurring/occurrences/${occurrenceId}/verify`, { method: 'PUT' }),
+  },
 };
 
 export interface User {
@@ -171,4 +182,30 @@ export interface MonthlyReport {
   year: number;
   month: number;
   categories: CategoryReport[];
+}
+
+export interface RecurringPayment {
+  id: string;
+  account_id: string;
+  account_name: string;
+  currency_code: string;
+  counterparty: string;
+  amount: string;
+  category_id: string | null;
+  category_name: string | null;
+  frequency: string;
+  start_date: string;
+  end_date: string | null;
+  created_at: string;
+}
+
+export interface RecurringOccurrence {
+  id: string;
+  recurring_payment_id: string;
+  due_date: string;
+  verified: boolean;
+  counterparty: string;
+  amount: string;
+  category_id: string | null;
+  category_name: string | null;
 }

@@ -113,5 +113,31 @@ export async function initDb(): Promise<void> {
       ADD COLUMN IF NOT EXISTS transfer_id UUID
   `);
 
+  // Migration: recurring payments and their generated occurrences
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS recurring_payments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      counterparty VARCHAR(255) NOT NULL,
+      amount NUMERIC(20, 4) NOT NULL,
+      category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+      frequency VARCHAR(20) NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS recurring_occurrences (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      recurring_payment_id UUID NOT NULL REFERENCES recurring_payments(id) ON DELETE CASCADE,
+      due_date DATE NOT NULL,
+      verified BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(recurring_payment_id, due_date)
+    )
+  `);
+
   console.log('Database initialized');
 }

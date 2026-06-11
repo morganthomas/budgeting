@@ -12,6 +12,7 @@ import CategoriesPage from './pages/CategoriesPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import DataPage from './pages/DataPage';
 import ProfilePage from './pages/ProfilePage';
+import RecurringPage from './pages/RecurringPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/reports" element={<MonthlyReportPage />} />
             <Route path="/data" element={<DataPage />} />
+            <Route path="/recurring" element={<RecurringPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Routes>

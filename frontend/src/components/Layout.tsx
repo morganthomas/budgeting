@@ -48,6 +48,14 @@ export default function Layout() {
             Reports
           </NavLink>
           <NavLink
+            to="/recurring"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`
+            }
+          >
+            Recurring
+          </NavLink>
+          <NavLink
             to="/data"
             className={({ isActive }) =>
               `text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'}`

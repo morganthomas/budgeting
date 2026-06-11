@@ -8,12 +8,15 @@ router.use(requireAuth);
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   const result = await pool.query(
     `SELECT a.*, c.code as currency_code, c.name as currency_name,
-       COALESCE(a.start_balance + SUM(t.amount), a.start_balance) as current_balance
+       a.start_balance
+       + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id), 0)
+       + COALESCE((SELECT SUM(rp.amount) FROM recurring_occurrences ro
+                   JOIN recurring_payments rp ON ro.recurring_payment_id = rp.id
+                   WHERE rp.account_id = a.id), 0)
+       as current_balance
      FROM accounts a
      JOIN currencies c ON a.currency_id = c.id
-     LEFT JOIN transactions t ON t.account_id = a.id
      WHERE a.user_id = $1
-     GROUP BY a.id, c.code, c.name
      ORDER BY a.sort_order NULLS LAST, a.created_at`,
     [req.userId]
   );
@@ -48,12 +51,15 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   const result = await pool.query(
     `SELECT a.*, c.code as currency_code, c.name as currency_name,
-       COALESCE(a.start_balance + SUM(t.amount), a.start_balance) as current_balance
+       a.start_balance
+       + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id), 0)
+       + COALESCE((SELECT SUM(rp.amount) FROM recurring_occurrences ro
+                   JOIN recurring_payments rp ON ro.recurring_payment_id = rp.id
+                   WHERE rp.account_id = a.id), 0)
+       as current_balance
      FROM accounts a
      JOIN currencies c ON a.currency_id = c.id
-     LEFT JOIN transactions t ON t.account_id = a.id
-     WHERE a.id = $1 AND a.user_id = $2
-     GROUP BY a.id, c.code, c.name`,
+     WHERE a.id = $1 AND a.user_id = $2`,
     [req.params.id, req.userId]
   );
   if (result.rows.length === 0) {

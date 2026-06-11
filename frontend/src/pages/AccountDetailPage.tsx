@@ -1,14 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, Account, Transaction, Category } from '../api';
+import { api, Account, Transaction, Category, RecurringOccurrence } from '../api';
 
 function fmt(amount: string) {
   const n = parseFloat(amount);
   return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-function fmtDate(ts: string) {
+function fmtDatetime(ts: string) {
   return new Date(ts).toLocaleString();
+}
+
+function fmtDate(d: string) {
+  return new Date(d.split('T')[0] + 'T12:00:00').toLocaleDateString();
+}
+
+type Row =
+  | { kind: 'tx';  tx:  Transaction }
+  | { kind: 'occ'; occ: RecurringOccurrence };
+
+function rowDate(r: Row): number {
+  return r.kind === 'tx'
+    ? new Date(r.tx.timestamp).getTime()
+    : new Date(r.occ.due_date.split('T')[0] + 'T12:00:00').getTime();
 }
 
 export default function AccountDetailPage() {
@@ -16,6 +30,7 @@ export default function AccountDetailPage() {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [occurrences, setOccurrences] = useState<RecurringOccurrence[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,12 +55,19 @@ export default function AccountDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([api.accounts.get(id), api.transactions.list(id), api.categories.list(), api.accounts.list()])
-      .then(([acc, txs, cats, accs]) => {
+    Promise.all([
+      api.accounts.get(id),
+      api.transactions.list(id),
+      api.categories.list(),
+      api.accounts.list(),
+      api.recurring.occurrences(id),
+    ])
+      .then(([acc, txs, cats, accs, occs]) => {
         setAccount(acc);
         setTransactions(txs);
         setCategories(cats);
         setAllAccounts(accs);
+        setOccurrences(occs);
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -53,6 +75,11 @@ export default function AccountDetailPage() {
   const otherAccounts = allAccounts.filter((a) => a.id !== id);
   const toAccount = allAccounts.find((a) => a.id === transferToId);
   const currenciesDiffer = !!(toAccount && account && toAccount.currency_id !== account.currency_id);
+
+  const rows: Row[] = [
+    ...transactions.map(tx => ({ kind: 'tx' as const, tx })),
+    ...occurrences.map(occ => ({ kind: 'occ' as const, occ })),
+  ].sort((a, b) => rowDate(b) - rowDate(a));
 
   const resetForm = () => {
     setTimestamp(new Date().toISOString().slice(0, 16));
@@ -120,6 +147,16 @@ export default function AccountDetailPage() {
     if (id) {
       const acc = await api.accounts.get(id);
       setAccount(acc);
+    }
+  };
+
+  const handleVerify = async (occ: RecurringOccurrence) => {
+    const newVerified = !occ.verified;
+    setOccurrences(prev => prev.map(o => o.id === occ.id ? { ...o, verified: newVerified } : o));
+    try {
+      await api.recurring.verify(occ.id);
+    } catch {
+      setOccurrences(prev => prev.map(o => o.id === occ.id ? { ...o, verified: occ.verified } : o));
     }
   };
 
@@ -204,72 +241,37 @@ export default function AccountDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={transferTimestamp}
-                  onChange={(e) => setTransferTimestamp(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
+                <input type="datetime-local" value={transferTimestamp} onChange={(e) => setTransferTimestamp(e.target.value)} required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
-                <select
-                  value={transferToId}
-                  onChange={(e) => setTransferToId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                >
+                <select value={transferToId} onChange={(e) => setTransferToId(e.target.value)} required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">— Select account —</option>
-                  {otherAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.currency_code})</option>
-                  ))}
+                  {otherAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency_code})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount sent ({account.currency_code})
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={transferFromAmt}
-                  onChange={(e) => setTransferFromAmt(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount sent ({account.currency_code})</label>
+                <input type="text" inputMode="decimal" value={transferFromAmt} onChange={(e) => setTransferFromAmt(e.target.value)} placeholder="0.00" required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {currenciesDiffer && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount received ({toAccount?.currency_code})
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={transferToAmt}
-                    onChange={(e) => setTransferToAmt(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount received ({toAccount?.currency_code})</label>
+                  <input type="text" inputMode="decimal" value={transferToAmt} onChange={(e) => setTransferToAmt(e.target.value)} placeholder="0.00" required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={transferLoading}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-              >
+              <button type="submit" disabled={transferLoading}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
                 {transferLoading ? 'Transferring...' : 'Transfer'}
               </button>
-              <button
-                type="button"
-                onClick={() => { resetTransferForm(); setShowTransferForm(false); }}
-                className="text-gray-500 px-4 py-2 rounded-md text-sm hover:text-gray-700"
-              >
+              <button type="button" onClick={() => { resetTransferForm(); setShowTransferForm(false); }}
+                className="text-gray-500 px-4 py-2 rounded-md text-sm hover:text-gray-700">
                 Cancel
               </button>
             </div>
@@ -285,47 +287,27 @@ export default function AccountDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={timestamp}
-                  onChange={(e) => setTimestamp(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
+                <input type="datetime-local" value={timestamp} onChange={(e) => setTimestamp(e.target.value)} required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Counterparty</label>
-                <input
-                  value={counterparty}
-                  onChange={(e) => setCounterparty(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g. Grocery Store"
-                  required
-                />
+                <input value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder="e.g. Grocery Store" required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Amount <span className="text-gray-400 font-normal">(negative for expenses)</span>
                 </label>
-                <input
-                  type="text"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
+                <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)} required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
+                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">— None —</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 {categories.length === 0 && (
                   <p className="text-xs text-gray-400 mt-1">
@@ -346,7 +328,7 @@ export default function AccountDetailPage() {
         </div>
       )}
 
-      {transactions.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-gray-500 text-sm">No transactions yet.</p>
       ) : (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
@@ -361,30 +343,63 @@ export default function AccountDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {transactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(tx.timestamp)}</td>
-                  <td className="px-4 py-3 text-gray-900">{tx.counterparty}</td>
-                  <td className="px-4 py-3">
-                    {tx.transfer_id ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Transfer</span>
-                    ) : tx.category_name ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{tx.category_name}</span>
-                    ) : (
-                      <span className="text-gray-300 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${parseFloat(tx.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {fmt(tx.amount)}
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    {!tx.transfer_id && (
-                      <button onClick={() => openEdit(tx)} className="text-indigo-500 hover:text-indigo-700 mr-3">Edit</button>
-                    )}
-                    <button onClick={() => handleDelete(tx)} className="text-red-500 hover:text-red-700">Delete</button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map(row => {
+                if (row.kind === 'occ') {
+                  const occ = row.occ;
+                  return (
+                    <tr key={`occ-${occ.id}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(occ.due_date)}</td>
+                      <td className="px-4 py-3 text-gray-900">{occ.counterparty}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 mr-1">Recurring</span>
+                        {occ.category_name && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{occ.category_name}</span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${parseFloat(occ.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {fmt(occ.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs text-gray-500">
+                          <input
+                            type="checkbox"
+                            checked={occ.verified}
+                            onChange={() => handleVerify(occ)}
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
+                          />
+                          Verified
+                        </label>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const tx = row.tx;
+                return (
+                  <tr key={`tx-${tx.id}`} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDatetime(tx.timestamp)}</td>
+                    <td className="px-4 py-3 text-gray-900">{tx.counterparty}</td>
+                    <td className="px-4 py-3">
+                      {tx.transfer_id ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Transfer</span>
+                      ) : tx.category_name ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{tx.category_name}</span>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${parseFloat(tx.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {fmt(tx.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {!tx.transfer_id && (
+                        <button onClick={() => openEdit(tx)} className="text-indigo-500 hover:text-indigo-700 mr-3">Edit</button>
+                      )}
+                      <button onClick={() => handleDelete(tx)} className="text-red-500 hover:text-red-700">Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
